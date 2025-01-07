@@ -1,0 +1,229 @@
+﻿@page "/"
+@using System.Timers
+<PageTitle>Home</PageTitle>
+
+<div class="game-header">
+    <h1>Animal Matching Game</h1>
+</div>
+
+<style>
+    .container {
+        width: 400px;
+        margin: 0 auto; /* Центрирование контейнера */
+    }
+    button {
+        width: 100px;
+        height: 100px;
+        font-size: 50px;
+    }
+    .game-header {
+        text-align: center; /* Центрирование текста */
+        margin-top: 20px; /* Отступ сверху */
+        margin-bottom: 20px; /* Отступ снизу */
+    }
+</style>
+
+@if (string.IsNullOrEmpty(playerName))
+{
+    // выводим ввод имени пользователя и кнопку для старта игры, если имя не введено
+    <div>
+        <h2>Enter your name to start:</h2>
+        <input @bind="playerName" placeholder="Your Name" />
+        <button @onclick="StartGame" class="btn btn-success">Start Game</button>
+    </div>
+}
+else
+{
+    // выводим игровое поле с кнопками животных, если имя введено
+    <div class="container">
+        <div class="row">
+            @for (var animalNumber = 0; animalNumber < shuffledAnimals.Count; animalNumber++)
+            {
+                var animal = shuffledAnimals[animalNumber];
+                var uniqueDescription = $"Button #{animalNumber}";
+                <div class="col-3">
+                    <button @onclick="@(() => ButtonClick(animal, uniqueDescription))"
+                            type="button" class="btn btn-outline-dark">
+                        <h1>@animal</h1>
+                    </button>
+                </div>
+            }
+        </div>
+        <div class="row">
+            <h2>Matches found: @matchesFound</h2>
+        </div>
+        <div class="row">
+            <h2>Time: @timeDisplay</h2>
+        </div>
+    </div>
+}
+
+<div>
+    <h2>Top 5 Players</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Name</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var (name, time) in topPlayers)
+            {
+                <tr>
+                    <td>@(topPlayers.IndexOf((name, time)) + 1)</td>
+                    <td>@name</td>
+                    <td>@time.ToString("0.0s")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code
+{
+    List<string> animalEmoji = new List<string>();
+    List<string> shuffledAnimals = new List<string>();
+    int matchesFound = 0;
+    Timer timer;
+    int tenthsOfSecondsElapsed = 0;
+    string timeDisplay;
+
+    readonly List<int> animalUnicodePoints = new List<int>
+    {
+        0x1F436, // 🐶
+        0x1F431, // 🐱
+        0x1F42D, // 🐭
+        0x1F439, // 🐹
+        0x1F430, // 🐰
+        0x1F98A, // 🦊
+        0x1F99D, // 🦝
+        0x1F437, // 🐷
+        0x1F42E, // 🐮
+        0x1F414, // 🐔
+        0x1F427, // 🐧
+        0x1F981, // 🦁
+        0x1F42F, // 🐯
+        0x1F428, // 🐨
+        0x1F43B, // 🐻
+        0x1F43C, // 🐼
+        0x1F418, // 🐘
+        0x1F98B, // 🦋
+        0x1F993, // 🦓
+        0x1F992, // 🦒
+        0x1F40E, // 🐎
+        0x1F984, // 🦄
+        0x1F99B, // 🦛
+        0x1F995, // 🦕
+        0x1F996, // 🦖
+        0x1F40D, // 🐍
+        0x1F422, // 🐢
+        0x1F98E, // 🦎
+        0x1F40A, // 🐊
+        0x1F421, // 🐡
+        0x1F420, // 🐠
+        0x1F41F, // 🐟
+        0x1F988, // 🦈
+        0x1F419, // 🐙
+        0x1F991, // 🦑
+        0x1F990, // 🦐
+        0x1F980, // 🦀
+    };
+
+    string playerName = string.Empty;
+    List<(string Name, float Time)> topPlayers = new List<(string, float)>();
+
+    protected override void OnInitialized()
+    {
+        timer = new Timer(100);
+        timer.Elapsed += Timer_Tick;
+
+        // Генерируем эмоджи при загрузке страницы
+        GenerateRandomEmojiList();
+        SetUpGame();
+    }
+
+
+    private void GenerateRandomEmojiList()
+    {
+        animalEmoji.Clear();
+        Random random = new Random();
+        List<int> availableEmojis = new List<int>(animalUnicodePoints);
+
+        for (int i = 0; i < 8; i++)
+        {
+            int randomIndex = random.Next(availableEmojis.Count);
+            int emojiCodePoint = availableEmojis[randomIndex];
+            string emoji = char.ConvertFromUtf32(emojiCodePoint);
+            animalEmoji.Add(emoji);
+            animalEmoji.Add(emoji);
+            availableEmojis.RemoveAt(randomIndex);
+        }
+    }
+
+    private void SetUpGame()
+    {
+        Random random = new Random();
+        shuffledAnimals = animalEmoji
+            .OrderBy(item => random.Next())
+            .ToList();
+        matchesFound = 0;
+        tenthsOfSecondsElapsed = 0;
+    }
+
+    string lastAnimalFound = string.Empty;
+    string lastDescription = string.Empty;
+
+    private void Timer_Tick(Object source, ElapsedEventArgs e)
+    {
+        InvokeAsync(() =>
+        {
+            tenthsOfSecondsElapsed++;
+            timeDisplay = (tenthsOfSecondsElapsed / 10F).ToString("0.0s");
+            StateHasChanged();
+        });
+    }
+
+    private void ButtonClick(string animal, string animalDescription)
+    {
+        if (lastAnimalFound == string.Empty)
+        {
+            lastAnimalFound = animal;
+            lastDescription = animalDescription;
+            timer.Start();
+        }
+        else if ((lastAnimalFound == animal) && (animalDescription != lastDescription))
+        {
+            lastAnimalFound = string.Empty;
+            shuffledAnimals = shuffledAnimals
+                .Select(a => a.Replace(animal, string.Empty))
+                .ToList();
+            matchesFound++;
+
+            if (matchesFound == 8)
+            {
+                timer.Stop();
+                float finalTime = tenthsOfSecondsElapsed / 10F;
+                topPlayers.Add((playerName, finalTime));
+                topPlayers = topPlayers
+                    .OrderBy(entry => entry.Time)
+                    .Take(5)
+                    .ToList();
+
+                playerName = string.Empty; // Сбрасываем имя для нового игрока
+                GenerateRandomEmojiList();
+                SetUpGame();
+            }
+        }
+        else
+        {
+            lastAnimalFound = string.Empty;
+        }
+    }
+
+    private void StartGame()
+    {
+        SetUpGame();
+    }
+}
